@@ -3,13 +3,13 @@
 ## Detection
 
 ### Data Preparation
-First, download the images and labels for detection from our provided link. It is structured according to yolov5's required format.
+First, download the images and labels for detection from [dataset for detection](https://disk.pku.edu.cn:443/link/F87EB30E935982FC8082B81D88DDE55C) and decompressed it. It is structured according to yolov5's required format.
 
 ```bash
 cd datasets
-wget <the link for detection images and labels>
-cd ..
+tar -zvxf yolo_detection.tar.gz
 ```
+
 yolov5 assumes that the directory is sturctured as follows:
 ```
 - datasets
