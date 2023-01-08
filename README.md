@@ -78,12 +78,12 @@ After decompression, the directory looks like this:
 ### Training
 Take the *Large Margin Cosine Loss* method as an example.
 
-First, change the file `contrast/configs/train_lmcl.yaml` according to your needs.
+First, change the file `identification/configs/train_lmcl.yaml` according to your needs.
 For example, you can choose whether to use the pre-trained encoder from PyTorch.
 
 Then, train the model using the configuration in the `yaml` file.
 ```
-python contrast/train.py --config contrast/configs/train_lmcl.yaml
+python identification/train.py --config identification/configs/train_lmcl.yaml
 ```
 NOTE: you should be careful with your current working directory and the path set in the `yaml` file.
 ## Pose Estimation
