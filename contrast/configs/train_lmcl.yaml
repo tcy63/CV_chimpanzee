@@ -1,0 +1,29 @@
+dataset: path  # do not change this if you want to use a self-defined dataset
+data_folder: crop_identification
+# data_folder: datasets/crop_identification  # root directory of your dataset
+image_size: 32
+batch_size: 256
+num_workers: 8
+
+model: lmcl
+model_args:
+    encoder: resnet50
+    load_pt_encoder: True  # whether load the pre-trained weights from PyTorch
+    num_classes: 17
+load:
+
+epochs: 1000
+# optimizer: sgd
+# optimizer_args:
+#     lr: 0.05
+#     momentum: 0.9
+#     weight_decay: 0.0001
+optimizer: adam
+optimizer_args:
+#     lr: 0.001
+    
+print_freq: 20
+save_freq: 100
+
+
+
