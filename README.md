@@ -49,8 +49,41 @@ Or you can use the pre-trained weights and finetune the whole network:
 ```bash
 python yolov5/train.py --data datasets/chimpanzee.yaml --weights yolov5s.pt --img 640
 ```
-For more details, please refer to the yolov5 GitHub page [...]
+For more details, please refer to the yolov5 GitHub page.
 
 ## Identification
+### Data Preparation
+First, download the dataset from [cropped images for identification](https://disk.pku.edu.cn:443/link/4DE85DF2CC9B6F655615FF26A1D9E853) and decompress it.
+Here, 'crop' implies that the images used for identification are groung-truth bounding boxes.
 
+```bash
+cd datasets
+tar -zvxf crop_identification.tar.gz
+```
+After decompression, the directory looks like this:
+```
+- datasets
+    - yolo_detection
+    - crop_identification
+        - train
+            - Azibo
+                - 0.jpg
+                - ...
+            - Bambari
+            - ...
+            - Tai
+        - val
+```
+
+### Training
+Take the *Large Margin Cosine Loss* method as an example.
+
+First, change the file `contrast/configs/train_lmcl.yaml` according to your needs.
+For example, you can choose whether to use the pre-trained encoder from PyTorch.
+
+Then, train the model using the configuration in the `yaml` file.
+```
+python contrast/train.py --config contrast/configs/train_lmcl.yaml
+```
+NOTE: you should be careful with your current working directory and the path set in the `yaml` file.
 ## Pose Estimation
