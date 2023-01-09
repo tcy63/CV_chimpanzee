@@ -11,7 +11,7 @@ import tensorboard_logger as tb_logger
 import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
-from torch.optim import SGD, Adam
+from torch.optim import SGD, Adam, lr_scheduler
 from torchvision import transforms, datasets
 from torchvision.models import resnet50
 
@@ -119,15 +119,23 @@ def set_optimizer(config, params):
     elif config['optimizer'] == 'adam':
         optimizer = Adam(params) if config.get('optimizer_args') is None else Adam(params, **config['optimizer_args'])
     
-#     if config.get('milestones') is not None:
-#         lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, config['milestones'])
-#     else:
-#         lr_scheduler = None
-    return optimizer
+    if config.get('scheduler') is None:
+        scheduler = None
+        print("[Scheduler] do not use lr shceduler")
+    elif config['scheduler'] == 'step':
+        scheduler = lr_scheduler.StepLR(optimizer, step_size=300) if config.get('scheduler_args') is None else lr_scheduler.StepLR(optimizer, **config['scheduler_args'])
+    elif config['scheduler'] == 'exp':
+        scheduler = lr_scheduler.ExponentialLR(optimizer, gamma=0.99) if config.get('scheduler_args') is None else lr_scheduler.ExponentialLR(optimizer, **config['scheduler_args'])
+    elif config['scheduler'] == 'cos':
+        scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=50, T_mult=5) if config.get('scheduler_args') is None else lr_scheduler.CosineAnnealingWarmRestarts(optimizer, **config['scheduler_args'])
+    elif config['scheduler'] == 'plateau':
+        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='max') if config.get('scheduler_args') is None else lr_scheduler.ReduceLROnPlateau(optimizer, **config['scheduler_args'])
+
+    return optimizer, scheduler
   
 
 
-def train(train_loader, model, criterion, optimizer, epoch):
+def train(train_loader, model, criterion, optimizer, scheduler, epoch):
     """one epoch training"""
     model.train()
 
@@ -161,6 +169,13 @@ def train(train_loader, model, criterion, optimizer, epoch):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        
+        # scheduler
+        if scheduler is not None:
+            if config['scheduler'] != 'plateau':
+                scheduler.step()
+            else:
+                scheduler.step(acc1)
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -210,12 +225,14 @@ def validate(val_loader, model, criterion, config, classifier=None):
 
 def set_save(config):
     # set the path according to the environment
-    if not os.path.isdir('./save'):
-        os.makedirs('./save')
-    save_model_path = './save/{}_models'.format(config['model'])
-    save_logger_path = './save/{}_tensorboard'.format(config['model'])
+    if not os.path.isdir('save'):
+        os.makedirs('save')
+    save_model_path = 'save/{}_models'.format(config['model'])
+    save_logger_path = 'save/{}_tensorboard'.format(config['model'])
 
     model_name = 'model_{}_load_pt_encoder_{}_optimizer_{}_bs_{}'.format(config['model'], config['model_args']['load_pt_encoder'], config['optimizer'], config['batch_size'])
+    if config.get('scheduler') is not None:
+        model_name += '_scheduler_{}'.format(config['scheduler'])
 
     save_logger_path = os.path.join(save_logger_path, model_name)
     if not os.path.isdir(save_logger_path):
@@ -239,7 +256,7 @@ def main(config):
     model, criterion = set_model(config)
 
     ### Optimizer ###
-    optimizer = set_optimizer(config, model.parameters())
+    optimizer, scheduler = set_optimizer(config, model.parameters())
 
     ### Save ###
     save_model_path, save_logger_path = set_save(config)
@@ -252,7 +269,7 @@ def main(config):
 
         # train for one epoch
         time1 = time.time()
-        train_loss, train_acc = train(train_loader, model, criterion, optimizer, epoch)
+        train_loss, train_acc = train(train_loader, model, criterion, optimizer, scheduler, epoch)
         time2 = time.time()
         # eval
         val_loss, val_acc = validate(val_loader, model, criterion, config)
@@ -269,7 +286,7 @@ def main(config):
         logger.log_value('train acc', train_acc, epoch)
         logger.log_value('val loss', val_loss, epoch)
         logger.log_value('val acc', val_acc, epoch)
-#         logger.log_value('learning_rate', optimizer.param_groups[0]['lr'], epoch)
+        logger.log_value('learning_rate', optimizer.param_groups[0]['lr'], epoch)
 
 
         if epoch % config['save_freq'] == 0:

@@ -1,6 +1,6 @@
 dataset: path  # do not change this if you want to use a self-defined dataset
-data_folder: crop_identification
-# data_folder: datasets/crop_identification  # root directory of your dataset
+# data_folder: crop_identification
+data_folder: datasets/crop_identification  # root directory of your dataset
 image_size: 32
 batch_size: 256
 num_workers: 8
@@ -21,7 +21,9 @@ epochs: 1000
 optimizer: adam
 optimizer_args:
 #     lr: 0.001
-    
+
+scheduler: exp
+
 print_freq: 20
 save_freq: 100
 
