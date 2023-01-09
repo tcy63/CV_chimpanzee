@@ -81,9 +81,9 @@ After decompression, the directory looks like this:
 ***Large Margin Cosine Loss*** was first proposed by [CosFace: Large Margin Cosine Loss for Deep Face Recognition](https://openaccess.thecvf.com/content_cvpr_2018/papers/Wang_CosFace_Large_Margin_CVPR_2018_paper.pdf). It aims to learn discriminative features by maximizing inter-class cosine margin. Our work first adopt this loss function in chimpanzee recognition and get relatively good results.
 
 During training, the weight feature $W$ is trained together with the backbone model. This loss is formalized as follows:
-$$
+```math
 L_{lmc} = \frac{1}{N}\sum_{i=1}^N -\log \frac{e^{s(\cos(\theta_{y_i},i)-m)}}{e^{s(\cos(\theta_{y_i},i)-m)} + \sum_{j\neq y_i} e^{s(\cos(\theta_{j},i))}} \\ \cos (\theta_j, i) = W^T_j \cdot x_i \\ W_j = \frac{W^*_j}{||W^*_j||}, x_i = \frac{x^*_i}{||x^*_i||}
-$$
+```
 
 During testing, the class of largest cosine similarity is the predicted label.
 $$
