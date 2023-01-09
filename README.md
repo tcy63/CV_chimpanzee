@@ -82,13 +82,16 @@ After decompression, the directory looks like this:
 
 During training, the weight feature $W$ is trained together with the backbone model. This loss is formalized as follows:
 ```math
-L_{lmc} = \frac{1}{N}\sum_{i=1}^N -\log \frac{e^{s(\cos(\theta_{y_i},i)-m)}}{e^{s(\cos(\theta_{y_i},i)-m)} + \sum_{j\neq y_i} e^{s(\cos(\theta_{j},i))}} \\ \cos (\theta_j, i) = W^T_j \cdot x_i \\ W_j = \frac{W^*_j}{||W^*_j||}, x_i = \frac{x^*_i}{||x^*_i||}
+L_{lmc} = \frac{1}{N}\sum_{i=1}^N -\log \frac{e^{s(\cos(\theta_{y_i},i)-m)}}{e^{s(\cos(\theta_{y_i},i)-m)} + \sum_{j\neq y_i} e^{s(\cos(\theta_{j},i))}} 
+```
+```math
+\cos (\theta_j, i) = W^T_j \cdot x_i \\ W_j = \frac{W^*_j}{||W^*_j||}, x_i = \frac{x^*_i}{||x^*_i||}
 ```
 
 During testing, the class of largest cosine similarity is the predicted label.
-$$
+```math
 \text{Pred}_i = \text{argmax}_j (W^T_j \cdot x_i)
-$$
+```
 There are two hyperparameters in this loss: the forced margin $m$ and feature norm $s$.
 
 ##### 2) Model
