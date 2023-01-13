@@ -85,7 +85,7 @@ During training, the weight feature $W$ is trained together with the backbone mo
 L_{lmc} = \frac{1}{N}\sum_{i=1}^N -\log \frac{e^{s(\cos(\theta_{y_i},i)-m)}}{e^{s(\cos(\theta_{y_i},i)-m)} + \sum_{j\neq y_i} e^{s(\cos(\theta_{j},i))}} 
 ```
 ```math
-\cos (\theta_j, i) = W^T_j \cdot x_i \\ W_j = \frac{W^*_j}{||W^*_j||}, x_i = \frac{x^*_i}{||x^*_i||}
+\cos (\theta_j, i) = W^T_j \cdot x_i, W_j = \frac{W^*_j}{||W^*_j||}, x_i = \frac{x^*_i}{||x^*_i||}
 ```
 
 During testing, the class of largest cosine similarity is the predicted label.
@@ -98,12 +98,8 @@ There are two hyperparameters in this loss: the forced margin $m$ and feature no
 During training and testing, the model is sturctured as follows:
 ```
 - encoder: resnet50 -> feat_dim = 2048
-- head: mlp -> feat_dim = 128
-    - Linear (2048, 2048)
-    - ReLu
-    - Linear (2048, 128)
 - weight: W -> num_classes = 17
-    - normalized Linear (128, 17)
+    - normalized Linear (2048, 17)
 ```
 The model is trained end-to-end and validated on-the-fly.
 
@@ -118,8 +114,8 @@ For example, `load_pt_encoder` indicates whether to use the pre-trained weights 
 model: lmcl
 model_args:
     encoder: resnet50
-    head: mlp
-    load_pt_encoder: True
+    load_pt_encoder: True  # whether to load the pre-trained weights from PyTorch
+    num_classes: 17
 ```
 
 Then, train the model using the configuration in the `yaml` file.
@@ -136,6 +132,67 @@ epoch 60, train time 2.02, train_loss 9.71, train_acc 44.11; val_loss 10.35, val
 epoch 80, train time 2.23, train_loss 9.21, train_acc 49.40; val_loss 9.97, val_acc 56.47
 epoch 100, train time 2.10, train_loss 9.34, train_acc 49.85; val_loss 11.35, val_acc 55.76
 ...
+```
+
+#### 2. Supervised Contrastive Learning
+##### 1) Background
+Contrastive learning is commonly used for self-supervised learning. This work proposes a new contrastive loss by leveraging label information. 
+##### 2) Model
+In this setup, we use a two-stage pipeline.
+
+During training:
+```
+- encoder: resnet50 -> 2048
+- projection head: mlp/linear -> 128
+- loss: supcon
+```
+After training, we can use the pre-trained encoder and finetune a linear classifier on top of it.
+
+During finetuning:
+```
+- (frozen) encoder: resnet50 -> 2048
+- classifier: Linear -> 17
+```
+
+##### 3) Training
+
+First, change the file `identification/configs/train_supcon.yaml` according to your needs. 
+
+```yaml
+# Part of the yaml file as an example
+model: supcon
+model_args:
+    encoder: resnet50
+    load_pt_encoder: True  # whether to load the pre-trained weights from PyTorch
+    head: mlp
+    feat_dim: 128
+```
+
+Then, train the model using the configuration in the `yaml` file.
+```
+python identification/train.py --config identification/configs/train_lmcl.yaml
+```
+##### 4) Finetuning
+During finetuning, we will add a classifier on top of the encoder used in the training time and only train the classifier.
+
+The most important thing is to specify the path where you stored the trained SupCon models.
+
+For example, `identification/configs/finetune_supcon.yaml`
+```yaml
+# Part of the yaml file as an example
+model: supcon
+model_args:
+    encoder: resnet50
+    load_pt_encoder: False  # whether load the pre-trained weights from PyTorch
+    head: mlp
+    feat_dim: 128
+# the path to load the trained SupCon model during the training time
+load: identification/save/supcon_models/model_supcon_load_pt_encoder_True_optimizer_adam_bs_256_scheduler_exp/ckpt_epoch_300.pth
+```
+
+Then, finetune the model using this file:
+```
+python identification/finetune.py --config identification/configs/finetune_lmcl.yaml
 ```
 
 ## Pose Estimation

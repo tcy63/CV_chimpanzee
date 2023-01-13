@@ -5,17 +5,18 @@ image_size: 32
 batch_size: 256
 num_workers: 8
 
-model: lmcl
+model: supcon
 model_args:
     encoder: resnet50
-    load_pt_encoder: True  # whether load the pre-trained weights from PyTorch
-    num_classes: 17
-load:
+    load_pt_encoder: False  # whether load the pre-trained weights from PyTorch
+    head: mlp
+    feat_dim: 128
+# the path to load the trained SupCon model during the training time
+load: identification/save/supcon_models/model_supcon_load_pt_encoder_True_optimizer_adam_bs_256_scheduler_exp/ckpt_epoch_300.pth
 
 loss_args:
-    m: 0.20 # 0.40 by default
 
-epochs: 1000
+epochs: 100
 # optimizer: sgd
 # optimizer_args:
 #     lr: 0.05
@@ -27,7 +28,7 @@ optimizer_args:
 
 scheduler: exp
 
-print_freq: 20
+print_freq: 1
 save_freq: 100
 
 

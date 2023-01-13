@@ -25,10 +25,11 @@ from util import MyImageFolder
 # from losses import SupConLoss
 # from evaluate_lmcl import validate
 
-from models import SupConResNet, LMCLResNet
+from models import SupConResNet, LMCLResNet, LinearClassifier
 from losses import SupConLoss, LargeMarginCosLoss
 
-
+from train import set_model, set_optimizer, set_save
+  
 
 def set_loader(config):
     if config['dataset'] == 'cifar10':
@@ -63,8 +64,6 @@ def set_loader(config):
         normalize,
     ])
     
-    if config['model'] == 'supcon':
-        train_transform = TwoCropTransform(train_transform)
     
     if config['dataset'] == 'cifar10':
         train_dataset = datasets.CIFAR10(root=config['data_folder'],
@@ -94,87 +93,37 @@ def set_loader(config):
     num_workers=config['num_workers'], pin_memory=True)
 
     return train_loader, val_loader
-    
 
 
-
-def set_model(config):
-    if config['model'] == 'lmcl':
-        model = LMCLResNet(**config['model_args'])
-        loss = LargeMarginCosLoss() if config.get('loss_args') is None else LargeMarginCosLoss(**config['loss_args'])
-    elif config['model'] == 'supcon':
-        model = SupConResNet(**config['model_args'])
-        loss = SupConLoss() if config.get('loss_args') is None else SupConLoss(**config['loss_args'])
-        
-    if config.get('load'):
-        print('Loading pretrained model from: ', config['load'])
-        model.load_state_dict(torch.load(config['load'])['model'])
-
-    if torch.cuda.is_available():
-        model = model.cuda()
-        loss = loss.cuda()
-    return model, loss
-
-
-def set_optimizer(config, params):
-    if config['optimizer'] == 'sgd':
-        optimizer = SGD(params, **config['optimizer_args'])
-    elif config['optimizer'] == 'adam':
-        optimizer = Adam(params) if config.get('optimizer_args') is None else Adam(params, **config['optimizer_args'])
-    
-    if config.get('scheduler') is None:
-        scheduler = None
-        print("[Scheduler] do not use lr shceduler")
-    elif config['scheduler'] == 'step':
-        scheduler = lr_scheduler.StepLR(optimizer, step_size=300) if config.get('scheduler_args') is None else lr_scheduler.StepLR(optimizer, **config['scheduler_args'])
-    elif config['scheduler'] == 'exp':
-        scheduler = lr_scheduler.ExponentialLR(optimizer, gamma=0.999) if config.get('scheduler_args') is None else lr_scheduler.ExponentialLR(optimizer, **config['scheduler_args'])
-    elif config['scheduler'] == 'cos':
-        scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=50, T_mult=5) if config.get('scheduler_args') is None else lr_scheduler.CosineAnnealingWarmRestarts(optimizer, **config['scheduler_args'])
-    elif config['scheduler'] == 'plateau':
-        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='max') if config.get('scheduler_args') is None else lr_scheduler.ReduceLROnPlateau(optimizer, **config['scheduler_args'])
-
-    return optimizer, scheduler
-  
-
-
-def train(train_loader, model, criterion, optimizer, scheduler, epoch):
-    """one epoch training"""
+def finetune(train_loader, val_loader, model, classifier, criterion, optimizer, scheduler):
+    """one epoch classifier finetuning"""
     model.train()
 
     batch_time = AverageMeter()
     data_time = AverageMeter()
-    losses = AverageMeter()
-    top1 = AverageMeter()
+    train_losses = AverageMeter()
+    val_losses = AverageMeter()
+    train_top1 = AverageMeter()
+    val_top1 = AverageMeter()
 
     end = time.time()
     for idx, (images, labels) in enumerate(train_loader):
-        data_time.update(time.time() - end)
-
-        if config['model'] == 'supcon':
-            images = torch.cat([images[0], images[1]], dim=0)
-
+        
         if torch.cuda.is_available():
             images = images.cuda(non_blocking=True)
             labels = labels.cuda(non_blocking=True)
         bsz = labels.shape[0]
 
         # compute loss
-        outputs = model(images)
+        outputs = classifier(model.encode(images))
 
-        # create multi-view features of SupConLoss [B, 2, D]
-        if config['model'] == 'supcon':
-            f1, f2 = torch.split(outputs, [bsz, bsz], dim=0)
-            outputs = torch.cat([f1.unsqueeze(1), f2.unsqueeze(1)], dim=1)
-        
         loss = criterion(outputs, labels)
         
         # update metric
-        losses.update(loss.item(), bsz)
+        train_losses.update(loss.item(), bsz)
 
-        if config['model'] == 'lmcl':
-            acc1, acc5 = accuracy(outputs, labels, topk=(1, 5))
-            top1.update(acc1[0], bsz)
+        acc1, acc5 = accuracy(outputs, labels, topk=(1, 5))
+        train_top1.update(acc1[0], bsz)
         
         # optimizer
         optimizer.zero_grad()
@@ -191,41 +140,31 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch):
         # measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()
-
-    return losses.avg, top1.avg
-
-
-def validate(val_loader, model, criterion, config):
-    """validation"""
+    
     model.eval()
-
-    batch_time = AverageMeter()
-    losses = AverageMeter()
-    top1 = AverageMeter()
-
     with torch.no_grad():
-        end = time.time()
         for idx, (images, labels) in enumerate(val_loader):
-            images = images.float().cuda()
-            labels = labels.cuda()
+            if torch.cuda.is_available():
+                images = images.cuda(non_blocking=True)
+                labels = labels.cuda(non_blocking=True)
             bsz = labels.shape[0]
 
-            # forward
-            if config['model'] == 'lmcl':
-                output = model(images)
-                # output = model(images, labels)
-                acc1, acc5 = accuracy(output, labels, topk=(1, 5))
-                loss = criterion(output, labels)
+            # compute loss
+            outputs = classifier(model.encode(images))
+            loss = criterion(outputs, labels)
             
-            # update
-            top1.update(acc1[0], bsz)
-            losses.update(loss.item(), bsz)
-            
-            # measure elapsed time
-            batch_time.update(time.time() - end)
-            end = time.time()
+            # update metric
+            val_losses.update(loss.item(), bsz)
 
-    return losses.avg, top1.avg
+            acc1, acc5 = accuracy(outputs, labels, topk=(1, 5))
+            val_top1.update(acc1[0], bsz)
+        
+    return train_losses.avg, train_top1.acc, val_losses.avg, val_top1.acc
+        
+        
+
+    
+
 
 def set_save(config):
     # set the path according to the environment
@@ -259,8 +198,9 @@ def main(config):
     ### Model and Loss ###
     model, criterion = set_model(config)
 
+    classifier = LinearClassifier()
     ### Optimizer ###
-    optimizer, scheduler = set_optimizer(config, model.parameters())
+    optimizer, scheduler = set_optimizer(config, classifier.parameters())
 
     ### Save ###
     save_model_path, save_logger_path = set_save(config)
@@ -269,35 +209,30 @@ def main(config):
 
     # training routine
     for epoch in range(1, config['epochs'] + 1):
-#         adjust_learning_rate(opt, optimizer, epoch)
 
-        # train for one epoch
         time1 = time.time()
-        train_loss, train_acc = train(train_loader, model, criterion, optimizer, scheduler, epoch)
+        train_loss, train_acc, val_loss, val_acc = finetune(train_loader, val_loader, model, classifier, criterion, optimizer, scheduler)
         time2 = time.time()
         # eval
-
-        if config['model'] == 'lmcl':
-            val_loss, val_acc = validate(val_loader, model, criterion, config)
-            if val_acc > best_acc:
-                best_acc = val_acc
-                best_epoch = epoch
+        if val_acc > best_acc:
+            best_acc = val_acc
+            best_epoch = epoch
         
         if epoch % config['print_freq'] == 0:
             print('epoch {}, train time {:.2f}, train_loss {:.2f}, train_acc {:.2f}; val_loss {:.2f}, val_acc {:.2f}'.format(epoch, time2 - time1, train_loss, train_acc, val_loss, val_acc))
 
 
-        # # tensorboard logger
-        # logger.log_value('train loss', train_loss, epoch)
-        # logger.log_value('train acc', train_acc, epoch)
-        # logger.log_value('val loss', val_loss, epoch)
-        # logger.log_value('val acc', val_acc, epoch)
-        # logger.log_value('learning_rate', optimizer.param_groups[0]['lr'], epoch)
+        # tensorboard logger
+        logger.log_value('train loss', train_loss, epoch)
+        logger.log_value('train acc', train_acc, epoch)
+        logger.log_value('val loss', val_loss, epoch)
+        logger.log_value('val acc', val_acc, epoch)
+        logger.log_value('learning_rate', optimizer.param_groups[0]['lr'], epoch)
 
 
         if epoch % config['save_freq'] == 0:
             save_file = os.path.join(
-                save_model_path, 'ckpt_epoch_{epoch}.pth'.format(epoch=epoch))
+                save_model_path, 'finetune_ckpt_epoch_{epoch}.pth'.format(epoch=epoch))
             save_model(model, optimizer, config, epoch, save_file)
 
     # save the last model

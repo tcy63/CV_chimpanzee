@@ -62,7 +62,8 @@ class LMCLResNet(nn.Module):
         model_fun, dim_en = model_dict[encoder]
         self.encoder = model_fun(pretrained=True) if load_pt_encoder else model_fun()
         self.encoder = torch.nn.Sequential(*(list(self.encoder.children())[:-1]))
-        self.weight = nn.Linear(dim_en, num_classes)
+        # self.weight = nn.Linear(dim_en, num_classes)
+        self.weight = nn.Parameter(torch.Tensor(dim_en, num_classes))
         nn.init.xavier_uniform_(self.weight)
         
     

@@ -108,7 +108,7 @@ class LargeMarginCosLoss(nn.Module):
             a loss scalar
         """
         one_hot = torch.zeros_like(logits)  # (B, C)
-        one_hot.scatter_(dim=1, index=labels.view(-1, 1), src=1.0)
+        one_hot.scatter_(1, labels.view(-1, 1), 1.0)
         logits = self.s * (logits - self.m * one_hot)
         loss = nn.CrossEntropyLoss()
         return loss(logits, labels)

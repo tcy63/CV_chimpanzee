@@ -5,15 +5,15 @@ image_size: 32
 batch_size: 256
 num_workers: 8
 
-model: lmcl
+model: supcon
 model_args:
     encoder: resnet50
     load_pt_encoder: True  # whether load the pre-trained weights from PyTorch
-    num_classes: 17
+    head: mlp
+    feat_dim: 128
 load:
 
 loss_args:
-    m: 0.20 # 0.40 by default
 
 epochs: 1000
 # optimizer: sgd
@@ -27,7 +27,7 @@ optimizer_args:
 
 scheduler: exp
 
-print_freq: 20
+print_freq: 10
 save_freq: 100
 
 
