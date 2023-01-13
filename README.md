@@ -156,22 +156,19 @@ During finetuning:
 
 ##### 3) Training
 
-First, change the file `identification/configs/train_supcon.yaml` according to your needs. 
+1. Self-supervised contrastive learning
+   
+    You need to specify the `model` as `supcon` and `method` as `simclr`.
+    ```
+    python identification/train.py --config identification/configs/train_simclr.yaml
+    ```
+2. Supervised contrastive learning
+   
+   You need to specify both the `model` and `method` as `supcon`.
+    ```
+    python identification/train.py --config identification/configs/train_supcon.yaml
+    ```
 
-```yaml
-# Part of the yaml file as an example
-model: supcon
-model_args:
-    encoder: resnet50
-    load_pt_encoder: True  # whether to load the pre-trained weights from PyTorch
-    head: mlp
-    feat_dim: 128
-```
-
-Then, train the model using the configuration in the `yaml` file.
-```
-python identification/train.py --config identification/configs/train_lmcl.yaml
-```
 ##### 4) Finetuning
 During finetuning, we will add a classifier on top of the encoder used in the training time and only train the classifier.
 
