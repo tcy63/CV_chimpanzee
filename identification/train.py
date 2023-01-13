@@ -19,17 +19,15 @@ from util import TwoCropTransform, AverageMeter
 from util import adjust_learning_rate, warmup_learning_rate, accuracy
 from util import set_optimizer, save_model
 from util import MyImageFolder
-from networks.resnet_big import SupConResNet, LMCLResNet
-from networks.layers import MarginCosineProduct, cosine_sim
+# from networks.resnet_big import SupConResNet, LMCLResNet
+# from networks.layers import MarginCosineProduct, cosine_sim
 # from losses import SupConLoss
-
 # from evaluate_lmcl import validate
 
-try:
-    import apex
-    from apex import amp, optimizers
-except ImportError:
-    pass
+from models import SupConResNet, LMCLResNet
+from losses import SupConLoss, LargeMarginCosLoss
+
+
 
 def set_loader(config):
     if config['dataset'] == 'cifar10':
@@ -98,10 +96,10 @@ def set_loader(config):
 def set_model(config):
     if config['model'] == 'lmcl':
         model = LMCLResNet(**config['model_args'])
-        loss = nn.CrossEntropyLoss()
+        loss = LargeMarginCosLoss() if config.get('loss_args') is None else LargeMarginCosLoss(**config['model_args'])
     elif config['model'] == 'supcon':
         model = SupConResNet(**config['model_args'])
-        loss = SupConLoss() if config.get('loss_args') is None else SupConLoss(['loss_args'])
+        loss = SupConLoss() if config.get('loss_args') is None else SupConLoss(**config['loss_args'])
         
     if config.get('load'):
         print('Loading pretrained model from: ', config['load'])
@@ -125,7 +123,7 @@ def set_optimizer(config, params):
     elif config['scheduler'] == 'step':
         scheduler = lr_scheduler.StepLR(optimizer, step_size=300) if config.get('scheduler_args') is None else lr_scheduler.StepLR(optimizer, **config['scheduler_args'])
     elif config['scheduler'] == 'exp':
-        scheduler = lr_scheduler.ExponentialLR(optimizer, gamma=0.99) if config.get('scheduler_args') is None else lr_scheduler.ExponentialLR(optimizer, **config['scheduler_args'])
+        scheduler = lr_scheduler.ExponentialLR(optimizer, gamma=0.999) if config.get('scheduler_args') is None else lr_scheduler.ExponentialLR(optimizer, **config['scheduler_args'])
     elif config['scheduler'] == 'cos':
         scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=50, T_mult=5) if config.get('scheduler_args') is None else lr_scheduler.CosineAnnealingWarmRestarts(optimizer, **config['scheduler_args'])
     elif config['scheduler'] == 'plateau':
@@ -148,22 +146,30 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch):
     for idx, (images, labels) in enumerate(train_loader):
         data_time.update(time.time() - end)
 
+        if config['model'] == 'supcon':
+            images = torch.cat([images[0], images[1]], dim=0)
+
         if torch.cuda.is_available():
             images = images.cuda(non_blocking=True)
             labels = labels.cuda(non_blocking=True)
         bsz = labels.shape[0]
 
-#         # warm-up learning rate
-#         warmup_learning_rate(opt, epoch, idx, len(train_loader), optimizer)
-
         # compute loss
-        output = model(images, labels)
-        loss = criterion(output, labels)
+        outputs = model(images)
+
+        # create multi-view features of SupConLoss [B, 2, D]
+        if config['model'] == 'supcon':
+            f1, f2 = torch.split(outputs, [bsz, bsz], dim=0)
+            outputs = torch.cat([f1.unsqueeze(1), f2.unsqueeze(1)], dim=1)
+        
+        loss = criterion(outputs, labels)
         
         # update metric
         losses.update(loss.item(), bsz)
-        acc1, acc5 = accuracy(output, labels, topk=(1, 5))
-        top1.update(acc1[0], bsz)
+
+        if config['model'] == 'supcon':
+            acc1, acc5 = accuracy(outputs, labels, topk=(1, 5))
+            top1.update(acc1[0], bsz)
         
         # optimizer
         optimizer.zero_grad()
@@ -184,7 +190,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch):
     return losses.avg, top1.avg
 
 
-def validate(val_loader, model, criterion, config, classifier=None):
+def validate(val_loader, model, criterion, config):
     """validation"""
     model.eval()
 
@@ -201,19 +207,12 @@ def validate(val_loader, model, criterion, config, classifier=None):
 
             # forward
             if config['model'] == 'lmcl':
-                output = model.encoder(images)
-                while output.dim() > 2:
-                    output = torch.squeeze(output, dim=2)
-                output = cosine_sim((output), model.layer.weight)
-                output = model(images, labels)
+                output = model(images)
+                # output = model(images, labels)
                 acc1, acc5 = accuracy(output, labels, topk=(1, 5))
                 loss = criterion(output, labels)
             
-            elif config['model'] == 'supcon':
-                output = classifier(model.encoder(images))
-                loss = criterion(output, labels)
-                
-            # update metrics
+            # update
             top1.update(acc1[0], bsz)
             losses.update(loss.item(), bsz)
             
@@ -272,10 +271,12 @@ def main(config):
         train_loss, train_acc = train(train_loader, model, criterion, optimizer, scheduler, epoch)
         time2 = time.time()
         # eval
-        val_loss, val_acc = validate(val_loader, model, criterion, config)
-        if val_acc > best_acc:
-            best_acc = val_acc
-            best_epoch = epoch
+
+        if config['model'] == 'lmcl':
+            val_loss, val_acc = validate(val_loader, model, criterion, config)
+            if val_acc > best_acc:
+                best_acc = val_acc
+                best_epoch = epoch
         
         if epoch % config['print_freq'] == 0:
             print('epoch {}, train time {:.2f}, train_loss {:.2f}, train_acc {:.2f}; val_loss {:.2f}, val_acc {:.2f}'.format(epoch, time2 - time1, train_loss, train_acc, val_loss, val_acc))
