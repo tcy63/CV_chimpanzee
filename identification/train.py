@@ -237,9 +237,11 @@ def set_save(config):
     save_model_path = 'identification/save/{}_models'.format(config['model'])
     save_logger_path = 'identification/save/{}_tensorboard'.format(config['model'])
 
-    model_name = 'model_{}_load_pt_encoder_{}_optimizer_{}_bs_{}'.format(config['model'], config['model_args']['load_pt_encoder'], config['optimizer'], config['batch_size'])
+    model_name = 'model_{}_encoder_{}_load_pt_encoder_{}_optimizer_{}_bs_{}'.format(config['model'], config['model_args']['encoder'], config['model_args']['load_pt_encoder'], config['optimizer'], config['batch_size'])
     if config.get('scheduler') is not None:
         model_name += '_scheduler_{}'.format(config['scheduler'])
+    if config.get('method') is not None:
+        model_name += '_method_{}'.format(config['method'])
 
     save_logger_path = os.path.join(save_logger_path, model_name)
     if not os.path.isdir(save_logger_path):
