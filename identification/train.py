@@ -283,17 +283,22 @@ def main(config):
                 best_acc = val_acc
                 best_epoch = epoch
         
-        if epoch % config['print_freq'] == 0:
-            print('epoch {}, train time {:.2f}, train_loss {:.2f}, train_acc {:.2f}; val_loss {:.2f}, val_acc {:.2f}'.format(epoch, time2 - time1, train_loss, train_acc, val_loss, val_acc))
+            if epoch % config['print_freq'] == 0:
+                print('epoch {}, train time {:.2f}, train_loss {:.2f}, train_acc {:.2f}; val_loss {:.2f}, val_acc {:.2f}'.format(epoch, time2 - time1, train_loss, train_acc, val_loss, val_acc))
 
 
-        # # tensorboard logger
-        # logger.log_value('train loss', train_loss, epoch)
-        # logger.log_value('train acc', train_acc, epoch)
-        # logger.log_value('val loss', val_loss, epoch)
-        # logger.log_value('val acc', val_acc, epoch)
-        # logger.log_value('learning_rate', optimizer.param_groups[0]['lr'], epoch)
+            # tensorboard logger
+            logger.log_value('train loss', train_loss, epoch)
+            logger.log_value('train acc', train_acc, epoch)
+            logger.log_value('val loss', val_loss, epoch)
+            logger.log_value('val acc', val_acc, epoch)
+            logger.log_value('learning_rate', optimizer.param_groups[0]['lr'], epoch)
 
+        elif config['model'] == 'supcon':
+            if epoch % config['print_freq'] == 0:
+                print('epoch {}, train time {:.2f}, train_loss {:.2f}'.format(epoch, time2 - time1, train_loss))
+            logger.log_value('train loss', train_loss, epoch)
+            logger.log_value('learning_rate', optimizer.param_groups[0]['lr'], epoch)
 
         if epoch % config['save_freq'] == 0:
             save_file = os.path.join(
