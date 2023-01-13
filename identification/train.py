@@ -167,7 +167,10 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch):
             f1, f2 = torch.split(outputs, [bsz, bsz], dim=0)
             outputs = torch.cat([f1.unsqueeze(1), f2.unsqueeze(1)], dim=1)
         
-        loss = criterion(outputs, labels)
+        if config.get('method') is not None and config['method'] == 'simclr':
+            loss = criterion(outputs)
+        else:
+            loss = criterion(outputs, labels)
         
         # update metric
         losses.update(loss.item(), bsz)

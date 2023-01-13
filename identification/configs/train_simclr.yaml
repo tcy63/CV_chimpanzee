@@ -13,7 +13,7 @@ model_args:
     feat_dim: 128
 load:
 
-method: supcon
+method: simclr
 
 loss_args:
 
