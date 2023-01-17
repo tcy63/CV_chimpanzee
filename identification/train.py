@@ -75,14 +75,14 @@ def set_loader(config):
                                           transform=train_transform,
                                           download=True)
     elif config['dataset'] == 'path':
-        # train_dataset = MyImageFolder(root=config['data_folder']+"/train",
-        #                                     transform=train_transform)
-        train_dataset = ImageFolder(root=config['data_folder']+"/train",
+        train_dataset = MyImageFolder(root=config['data_folder']+"/train",
                                             transform=train_transform)
-        # val_dataset = MyImageFolder(root=config['data_folder']+"/val",
-        #                                     transform=val_transform)
-        val_dataset = ImageFolder(root=config['data_folder']+"/val",
+#         train_dataset = ImageFolder(root=config['data_folder']+"/train",
+#                                             transform=train_transform)
+        val_dataset = MyImageFolder(root=config['data_folder']+"/val",
                                             transform=val_transform)
+#         val_dataset = ImageFolder(root=config['data_folder']+"/val",
+#                                             transform=val_transform)
     
     train_sampler = None
     train_loader = torch.utils.data.DataLoader(
@@ -237,7 +237,7 @@ def set_save(config):
     save_model_path = 'identification/save/{}_models'.format(config['model'])
     save_logger_path = 'identification/save/{}_tensorboard'.format(config['model'])
 
-    model_name = 'model_{}_encoder_{}_load_pt_encoder_{}_optimizer_{}_bs_{}'.format(config['model'], config['model_args']['encoder'], config['model_args']['load_pt_encoder'], config['optimizer'], config['batch_size'])
+    model_name = 'model_{}_load_pt_encoder_{}_optimizer_{}_bs_{}'.format(config['model'], config['model_args']['load_pt_encoder'], config['optimizer'], config['batch_size'])
     if config.get('scheduler') is not None:
         model_name += '_scheduler_{}'.format(config['scheduler'])
     if config.get('method') is not None:

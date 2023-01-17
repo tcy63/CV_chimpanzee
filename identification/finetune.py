@@ -28,7 +28,8 @@ from util import MyImageFolder
 from models import SupConResNet, LMCLResNet, LinearClassifier
 from losses import SupConLoss, LargeMarginCosLoss
 
-from train import set_model, set_optimizer, set_save
+# from train import set_model, set_optimizer, set_save
+from train import set_optimizer, set_save
   
 
 def set_loader(config):
@@ -74,14 +75,14 @@ def set_loader(config):
                                           transform=train_transform,
                                           download=True)
     elif config['dataset'] == 'path':
-        # train_dataset = MyImageFolder(root=config['data_folder']+"/train",
-        #                                     transform=train_transform)
-        train_dataset = ImageFolder(root=config['data_folder']+"/train",
+        train_dataset = MyImageFolder(root=config['data_folder']+"/train",
                                             transform=train_transform)
-        # val_dataset = MyImageFolder(root=config['data_folder']+"/val",
-        #                                     transform=val_transform)
-        val_dataset = ImageFolder(root=config['data_folder']+"/val",
+#         train_dataset = ImageFolder(root=config['data_folder']+"/train",
+#                                             transform=train_transform)
+        val_dataset = MyImageFolder(root=config['data_folder']+"/val",
                                             transform=val_transform)
+#         val_dataset = ImageFolder(root=config['data_folder']+"/val",
+#                                             transform=val_transform)
     
     train_sampler = None
     train_loader = torch.utils.data.DataLoader(
@@ -159,11 +160,28 @@ def finetune(train_loader, val_loader, model, classifier, criterion, optimizer, 
             acc1, acc5 = accuracy(outputs, labels, topk=(1, 5))
             val_top1.update(acc1[0], bsz)
         
-    return train_losses.avg, train_top1.acc, val_losses.avg, val_top1.acc
+    return train_losses.avg, train_top1.avg, val_losses.avg, val_top1.avg
         
         
 
-    
+def set_model(config):
+    if config['model'] == 'lmcl':
+        model = LMCLResNet(**config['model_args'])
+        loss = nn.CrossEntropyLoss()
+    elif config['model'] == 'supcon':
+        model = SupConResNet(**config['model_args'])
+        loss = torch.nn.CrossEntropyLoss()
+        classifier = LinearClassifier(**config['classifier_args'])
+        
+    if config.get('load'):
+        print('Loading pretrained model from: ', config['load'])
+        model.load_state_dict(torch.load(config['load'])['model'])
+
+    if torch.cuda.is_available():
+        model = model.cuda()
+        loss = loss.cuda()
+        classifier = classifier.cuda()
+    return model, classifier, loss
 
 
 def set_save(config):
@@ -196,9 +214,12 @@ def main(config):
     train_loader, val_loader = set_loader(config)
 
     ### Model and Loss ###
-    model, criterion = set_model(config)
+#     model, criterion = set_model(config)
 
-    classifier = LinearClassifier()
+#     classifier = LinearClassifier()
+
+    model, classifier, criterion = set_model(config)
+    
     ### Optimizer ###
     optimizer, scheduler = set_optimizer(config, classifier.parameters())
 
