@@ -172,24 +172,42 @@ During finetuning:
 ##### 4) Finetuning
 During finetuning, we will add a classifier on top of the encoder used in the training time and only train the classifier.
 
-The most important thing is to specify the path where you stored the trained SupCon models.
+If you follow the previous steps, you should be able to find contrastively trained models under `identification/save/supcon_models/<xxxx>/`, where `<xxxx>` means that it depends on your training settings.
 
-For example, `identification/configs/finetune_supcon.yaml`
+Then the most important thing is to specify the path where you stored the trained SupCon models. You should at least change the `load` part in file `identification/configs/finetune_supcon.yaml` or `identification/configs/finetune_simclr.yaml`.
+
+For example:
 ```yaml
-# Part of the yaml file as an example
+# Part of the yaml file
+
+dataset: path  # do not change this if you want to use a self-defined dataset
+# data_folder: crop_identification
+data_folder: datasets/crop_identification  # root directory of your dataset
+image_size: 32
+batch_size: 256
+num_workers: 8
+
 model: supcon
 model_args:
     encoder: resnet50
     load_pt_encoder: False  # whether load the pre-trained weights from PyTorch
     head: mlp
     feat_dim: 128
+
 # the path to load the trained SupCon model during the training time
-load: identification/save/supcon_models/model_supcon_load_pt_encoder_True_optimizer_adam_bs_256_scheduler_exp/ckpt_epoch_300.pth
+load: identification/save/supcon_models/model_supcon_load_pt_encoder_True_optimizer_adam_bs_256_scheduler_exp_method_supcon/ckpt_epoch_100.pth
 ```
 
-Then, finetune the model using this file:
+After specifying the model that you want to finetune on:
+
+1. Finetune the model trained from self-supervised contrastive learning
+
 ```
-python identification/finetune.py --config identification/configs/finetune_lmcl.yaml
+python identification/finetune.py --config identification/configs/finetune_simclr.yaml
 ```
 
-## Pose Estimation
+2. Finetune the model trained from supervised contrastive learning
+   
+```
+python identification/finetune.py --config identification/configs/finetune_supcon.yaml
+```
