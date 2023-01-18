@@ -7,7 +7,7 @@ import time
 import math
 import yaml
 
-import tensorboard_logger as tb_logger
+import wandb
 import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
@@ -235,7 +235,6 @@ def set_save(config):
     if not os.path.isdir('identification/save'):
         os.makedirs('identification/save')
     save_model_path = 'identification/save/{}_models'.format(config['model'])
-    save_logger_path = 'identification/save/{}_tensorboard'.format(config['model'])
 
     model_name = 'model_{}_load_pt_encoder_{}_optimizer_{}_bs_{}'.format(config['model'], config['model_args']['load_pt_encoder'], config['optimizer'], config['batch_size'])
     if config.get('scheduler') is not None:
@@ -243,15 +242,11 @@ def set_save(config):
     if config.get('method') is not None:
         model_name += '_method_{}'.format(config['method'])
 
-    save_logger_path = os.path.join(save_logger_path, model_name)
-    if not os.path.isdir(save_logger_path):
-        os.makedirs(save_logger_path)
-
     save_model_path = os.path.join(save_model_path, model_name)
     if not os.path.isdir(save_model_path):
         os.makedirs(save_model_path)
         
-    return save_model_path, save_logger_path
+    return save_model_path, model_name
 
 def main(config):
 
@@ -268,9 +263,9 @@ def main(config):
     optimizer, scheduler = set_optimizer(config, model.parameters())
 
     ### Save ###
-    save_model_path, save_logger_path = set_save(config)
+    save_model_path, model_name = set_save(config)
     
-    logger = tb_logger.Logger(logdir=save_logger_path, flush_secs=2)
+    wandb.init(project='cv_chimpanzee', name='train__'+model_name, config=config)
 
     # training routine
     for epoch in range(1, config['epochs'] + 1):
@@ -289,21 +284,20 @@ def main(config):
                 best_epoch = epoch
         
             if epoch % config['print_freq'] == 0:
+                wandb.log({'epoch': epoch, 'train_time': time2 - time1, 
+                       'learning_rate': optimizer.param_groups[0]['lr'],
+                       'train_loss': train_loss, 'train_acc': train_acc,
+                       'val_loss': val_loss, 'val_acc': val_acc,
+                })
                 print('epoch {}, train time {:.2f}, train_loss {:.2f}, train_acc {:.2f}; val_loss {:.2f}, val_acc {:.2f}'.format(epoch, time2 - time1, train_loss, train_acc, val_loss, val_acc))
-
-
-            # tensorboard logger
-            logger.log_value('train loss', train_loss, epoch)
-            logger.log_value('train acc', train_acc, epoch)
-            logger.log_value('val loss', val_loss, epoch)
-            logger.log_value('val acc', val_acc, epoch)
-            logger.log_value('learning_rate', optimizer.param_groups[0]['lr'], epoch)
 
         elif config['model'] == 'supcon':
             if epoch % config['print_freq'] == 0:
+                wandb.log({'epoch': epoch, 'train_time': time2 - time1, 
+                           'learning_rate': optimizer.param_groups[0]['lr'],
+                           'train_loss': train_loss, 
+                })
                 print('epoch {}, train time {:.2f}, train_loss {:.2f}'.format(epoch, time2 - time1, train_loss))
-            logger.log_value('train loss', train_loss, epoch)
-            logger.log_value('learning_rate', optimizer.param_groups[0]['lr'], epoch)
 
         if epoch % config['save_freq'] == 0:
             save_file = os.path.join(
@@ -314,6 +308,8 @@ def main(config):
     save_file = os.path.join(
         save_model_path, 'last.pth')
     save_model(model, optimizer, config, config['epochs'], save_file)
+    
+    wandb.log({'best_acc': best_acc, 'best_epoch': best_epoch})
     
     print('best validation accuracy: {:.2f}, epoch: {}'.format(best_acc, best_epoch))
 
