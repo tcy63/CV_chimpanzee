@@ -147,6 +147,12 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch):
     losses = AverageMeter()
     top1 = AverageMeter()
 
+    if config.get('method') is not None:
+        if config['method'] == 'supcon_simclr' and config['changing_epoch'] == epoch:
+            print(f"[LOSS] changing from supcon to simclr at {epoch}")
+        elif config['method'] == 'simclr_supcon' and config['changing_epoch'] == epoch:
+            print(f"[LOSS] changing from simclr to supcon at {epoch}")
+    
     end = time.time()
     for idx, (images, labels) in enumerate(train_loader):
         data_time.update(time.time() - end)
@@ -167,10 +173,13 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch):
             f1, f2 = torch.split(outputs, [bsz, bsz], dim=0)
             outputs = torch.cat([f1.unsqueeze(1), f2.unsqueeze(1)], dim=1)
         
-        if config.get('method') is not None and config['method'] == 'simclr':
-            loss = criterion(outputs)
-        else:
+        if config.get('method') is None:
             loss = criterion(outputs, labels)
+        else:
+            if config['method'] == 'simclr' or (config['method'] == 'supcon_simclr' and config['changing_epoch'] < epoch) or (config['method'] == 'simclr_supcon' and config['changing_epoch'] >= epoch):
+                loss = criterion(outputs)
+            else:
+                loss = criterion(outputs, labels)
         
         # update metric
         losses.update(loss.item(), bsz)
@@ -241,6 +250,8 @@ def set_save(config):
         model_name += '_scheduler_{}'.format(config['scheduler'])
     if config.get('method') is not None:
         model_name += '_method_{}'.format(config['method'])
+        if config.get('changing_epoch') is not None:
+            model_name += '_changing_epoch_{}'.format(config['changing_epoch'])
 
     save_model_path = os.path.join(save_model_path, model_name)
     if not os.path.isdir(save_model_path):
