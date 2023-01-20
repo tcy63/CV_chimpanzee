@@ -13,9 +13,11 @@ model_args:
 load:
 
 loss_args:
-    m: 0.20 # 0.40 by default
+    m: 0 # 0.40 by default
+    learnable_s: True
+    scale: 14
 
-epochs: 1000
+epochs: 400
 # optimizer: sgd
 # optimizer_args:
 #     lr: 0.05
@@ -29,6 +31,3 @@ scheduler: exp
 
 print_freq: 20
 save_freq: 100
-
-
-

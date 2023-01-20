@@ -246,6 +246,8 @@ def set_save(config):
     save_model_path = 'identification/save/{}_models'.format(config['model'])
 
     model_name = 'model_{}_load_pt_encoder_{}_optimizer_{}_bs_{}'.format(config['model'], config['model_args']['load_pt_encoder'], config['optimizer'], config['batch_size'])
+    if config['model'] == 'lmcl':
+        model_name += '_learnable_s_{}_m_{}'.format(config['loss_args']['learnable_s'], config['loss_args']['m'])
     if config.get('scheduler') is not None:
         model_name += '_scheduler_{}'.format(config['scheduler'])
     if config.get('method') is not None:
@@ -270,8 +272,10 @@ def main(config):
     ### Model and Loss ###
     model, criterion = set_model(config)
 
+    parameters = list(model.parameters()) + list(criterion.parameters()) if config['model'] == 'lmcl' and config['loss_args']['learnable_s'] else model.parameters()
+    
     ### Optimizer ###
-    optimizer, scheduler = set_optimizer(config, model.parameters())
+    optimizer, scheduler = set_optimizer(config, parameters)
 
     ### Save ###
     save_model_path, model_name = set_save(config)

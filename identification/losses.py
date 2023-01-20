@@ -94,9 +94,11 @@ class SupConLoss(nn.Module):
         return loss
 
 class LargeMarginCosLoss(nn.Module):
-    def __init__(self, s=30.0, m=0.40):
+    def __init__(self, scale=30.0, m=0.40, learnable_s=False):
         super().__init__()
-        self.s = s
+        self.s = torch.tensor(scale).log()
+        if learnable_s:
+            self.s = nn.Parameter(self.s)
         self.m = m
 
     def forward(self, logits, labels):
@@ -109,6 +111,6 @@ class LargeMarginCosLoss(nn.Module):
         """
         one_hot = torch.zeros_like(logits)  # (B, C)
         one_hot.scatter_(1, labels.view(-1, 1), 1.0)
-        logits = self.s * (logits - self.m * one_hot)
+        logits = self.s.exp() * (logits - self.m * one_hot)
         loss = nn.CrossEntropyLoss()
         return loss(logits, labels)
